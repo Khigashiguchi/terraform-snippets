@@ -1,0 +1,3 @@
+aws_access_key = "YOUR-ACCESS-KEY"
+aws_secret_key = "YOUR-SECRET-KEY"
+aws_region = "ap-northeast-1"
