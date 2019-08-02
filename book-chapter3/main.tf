@@ -38,13 +38,21 @@ data "aws_ami" "recent_amazon_linux_2" {
   }
 }
 
+data "template_file" "httpd_user_data" {
+  template = file("./user_data.sh.tpl")
+
+  vars = {
+    package = "httpd"
+  }
+}
+
 resource "aws_instance" "example" {
   ami = data.aws_ami.recent_amazon_linux_2.image_id
   instance_type = var.env == "prod" ? "m5.large" : "t3.micro"
   vpc_security_group_ids = [
     aws_security_group.example_ec2.id]
 
-  user_data = file("./user_data.sh")
+  user_data = data.template_file.httpd_user_data.rendered
 }
 
 output "example_instance_id" {
