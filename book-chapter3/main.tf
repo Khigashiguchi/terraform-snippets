@@ -3,6 +3,8 @@ provider "aws" {
   profile = "study-terraform"
 }
 
+variable "env" {}
+
 resource "aws_security_group" "example_ec2" {
   name = "example_ec2"
 
@@ -38,7 +40,7 @@ data "aws_ami" "recent_amazon_linux_2" {
 
 resource "aws_instance" "example" {
   ami                    = data.aws_ami.recent_amazon_linux_2.image_id
-  instance_type          = "t3.micro"
+  instance_type          = var.env == "prod" ? "m5.large" : "t3.micro"
   vpc_security_group_ids = [aws_security_group.example_ec2.id]
 
   user_data = <<EOF
