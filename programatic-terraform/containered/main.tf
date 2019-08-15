@@ -6,18 +6,9 @@ provider "aws" {
 data "aws_iam_policy_document" "allow_describe_regions" {
   statement {
     effect = "Allow"
-    actions = [
-      "ec2.DescribeRegions"]
+    actions = ["ec2:DescribeRegions"]
     # リージョン一覧を取得する
     resources = ["*"]
-    # Error
-    # MalformedPolicyDocument: Actions/Conditions must be prefaced by a vendor, e.g., iam, sdb, ec2, etc
-    # MalformedPolicyDocument: Syntax errors in policy.
-    condition {
-      test = ""
-      values = []
-      variable = ""
-    }
   }
 }
 
