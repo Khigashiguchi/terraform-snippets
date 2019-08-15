@@ -90,3 +90,50 @@ data "aws_iam_policy_document" "alb_log" {
     }
   }
 }
+
+resource "aws_vpc" "example" {
+  # CIDRブロック
+  # xx.xx.xx.xx/xxで定義　
+  cidr_block = "10.0.0.0/16"
+  # 名前解決
+  # AWSのDNSサーバでの名前解決を有効にする
+  enable_dns_support = true
+  # publicDNSホスト名を自動割当する
+  enable_dns_hostnames = true
+
+  tags = {
+    Name = "example"
+  }
+}
+
+resource "aws_subnet" "public" {
+  vpc_id = aws_vpc.example.id
+  # /24単位できる
+  cidr_block = "10.0.0.0/24"
+  # サブネットで起動したインスタンスに自動でIPを付与
+  map_public_ip_on_launch = true
+  availability_zone = "ap-northeast-1a"
+}
+
+resource "aws_internet_gateway" "example" {
+  vpc_id = aws_vpc.example.id
+}
+
+resource "aws_route_table" "public" {
+  vpc_id = aws_vpc.example.id
+}
+
+# ルートテーブルの1レコードに該当
+# VPC以外への通信をインターネットゲートウェイ経由でインターネットへ流す
+resource "aws_route" "public" {
+  route_table_id = aws_route_table.public.id
+  gateway_id = aws_internet_gateway.example.id
+  destination_cidr_block =  "0.0.0.0/0"
+}
+
+# どのルートテーブルを使ってルーティングするかをサブネット単位で判断
+# ルートテーブルとサブネットを関連付け
+resource "aws_route_table_association" "public" {
+  subnet_id = aws_subnet.public.id
+  route_table_id = aws_route_table.public.id
+}
