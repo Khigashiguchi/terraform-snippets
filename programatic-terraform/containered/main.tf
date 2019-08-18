@@ -63,6 +63,8 @@ resource "aws_s3_bucket" "public" {
 
 resource "aws_s3_bucket" "alb_log" {
   bucket = "alb-log-pragmatic-terraform-on-aws-hgsgtk001"
+  # 一度bucket内にファイルを作成するとdestroyできないので指定
+  force_destroy = true
 
   lifecycle_rule {
     enabled = true
@@ -233,4 +235,82 @@ module "example_sg" {
   vpc_id      = aws_vpc.example.id
   port        = 80
   cidr_blocks = ["0.0.0.0/0"]
+}
+
+# ALB Application Load Balancer
+# Route 53・ACM AWS Certificate Managerを使いHTTPSでアクセス
+# ALB クロスゾーン負荷分散に標準対応
+resource "aws_lb" "example" {
+  name = "example"
+  # type in ("application", "network")
+  # See also https://www.terraform.io/docs/providers/aws/r/lb.html#load_balancer_type
+  load_balancer_type = "application"
+  # true = internal, false = internet-facing
+  internal = false
+  # timeout = default 60
+  idle_timeout = 60
+  # 削除保護
+  # productionではtrueにしておきたいがdestroyしたいのでfalseへ
+  enable_deletion_protection = false
+
+  subnets = [
+    aws_subnet.public_0.id,
+    aws_subnet.public_1.id,
+  ]
+
+  access_logs {
+    bucket  = aws_s3_bucket.alb_log.id
+    enabled = true
+  }
+
+  security_groups = [
+    module.http_sg.security_group_id,
+    module.https_sg.security_group_id,
+    module.http_redirect_sg.security_group_id,
+  ]
+}
+
+output "alb_dns_name" {
+  value = aws_lb.example.dns_name
+}
+
+module "http_sg" {
+  source      = "./security_group"
+  name        = "http-sg"
+  vpc_id      = aws_vpc.example.id
+  port        = 80
+  cidr_blocks = ["0.0.0.0/0"]
+}
+
+module "https_sg" {
+  source      = "./security_group"
+  name        = "https-sg"
+  vpc_id      = aws_vpc.example.id
+  port        = 443
+  cidr_blocks = ["0.0.0.0/0"]
+}
+
+module "http_redirect_sg" {
+  source      = "./security_group"
+  name        = "http-redirect-sg"
+  vpc_id      = aws_vpc.example.id
+  port        = 8080
+  cidr_blocks = ["0.0.0.0/0"]
+}
+
+resource "aws_lb_listener" "http" {
+  load_balancer_arn = aws_lb.example.arn
+  port              = "80"
+  # ALBはHTTP/HTTPSのみ
+  protocol = "HTTP"
+
+  default_action {
+    type = "fixed-response"
+
+    fixed_response {
+      content_type = "text/plain"
+      message_body = "これは『HTTP』です"
+      status_code  = "200"
+    }
+  }
 }
