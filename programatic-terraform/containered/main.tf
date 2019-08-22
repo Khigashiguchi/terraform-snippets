@@ -314,3 +314,32 @@ resource "aws_lb_listener" "http" {
     }
   }
 }
+
+# Route 53
+# Host zone data source definition
+data "aws_route53_zone" "example" {
+  name = "hgsgtk.ninja"
+}
+
+# Create Host zone
+resource "aws_route53_zone" "test_example" {
+  name = "test.hgsgtk.ninja"
+}
+
+resource "aws_route53_record" "example" {
+  zone_id = data.aws_route53_zone.example.zone_id
+  name    = data.aws_route53_zone.example.name
+  # DNSレコードタイプ A / CNAME
+  # AWS独自拡張のALIASレコードの場合はAを指定
+  type = "A"
+
+  # ALIASレコード
+  # DNSからみるとただのAレコード、AWSサービスと統合されているため、S3やCloudFrontも指定可能
+  alias {
+    name    = aws_lb.example.dns_name
+    zone_id = aws_lb.example.zone_id
+    # Route53によるALBへのHealth Check
+    # See also https://aws.amazon.com/jp/premiumsupport/knowledge-center/load-balancer-marked-unhealthy/
+    evaluate_target_health = true
+  }
+}
