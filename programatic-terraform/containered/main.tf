@@ -343,3 +343,23 @@ resource "aws_route53_record" "example" {
     evaluate_target_health = true
   }
 }
+
+
+# ACM AWS Certificate Manager
+resource "aws_acm_certificate" "example" {
+  # set domain name
+  # * も可能
+  domain_name = data.aws_route53_zone.example.name
+  # ドメイン名の追加 ex. test.example.com
+  subject_alternative_names = []
+  # 検証方法
+  # Email or DNS
+  # 自動更新可能 DNS検証
+  validation_method = "DNS"
+
+  # 新しいSSL証明書再作成のサービス影響の制御
+  lifecycle {
+    # 新しいリソースを作ってから削除する
+    create_before_destory = true
+  }
+}
