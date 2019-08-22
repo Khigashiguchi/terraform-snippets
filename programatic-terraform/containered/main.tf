@@ -360,6 +360,6 @@ resource "aws_acm_certificate" "example" {
   # 新しいSSL証明書再作成のサービス影響の制御
   lifecycle {
     # 新しいリソースを作ってから削除する
-    create_before_destory = true
+    create_before_destroy = true
   }
 }
