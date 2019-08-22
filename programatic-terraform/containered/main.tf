@@ -363,3 +363,58 @@ resource "aws_acm_certificate" "example" {
     create_before_destroy = true
   }
 }
+
+# SSL証明書の検証
+# See also https://www.terraform.io/docs/providers/aws/r/route53_record.html
+resource "aws_route53_record" "example_certificate" {
+  name = aws_acm_certificate.example.domain_validation_options[0].resource_record_name
+  type = aws_acm_certificate.example.domain_validation_options[0].resource_record_type
+  records = [
+    aws_acm_certificate.example.domain_validation_options[0].resource_record_value
+  ]
+  zone_id = data.aws_route53_zone.example.id
+  ttl     = 60
+}
+
+resource "aws_acm_certificate_validation" "example" {
+  certificate_arn = aws_acm_certificate.example.id
+  validation_record_fqdns = [
+    aws_route53_record.example_certificate.fqdn
+  ]
+}
+
+# HTTPS の ALB listemner作成
+resource "aws_lb_listener" "https" {
+  load_balancer_arn = aws_lb.example.arn
+  port              = "443"
+  protocol          = "HTTPS"
+  certificate_arn   = aws_acm_certificate.example.arn
+  ssl_policy        = "ELBSecurityPolicy-2016-08"
+
+  default_action {
+    type = "fixed-response"
+
+    fixed_response {
+      content_type = "text/plain"
+      message_body = "これは『HTTPS』です"
+      status_code  = "200"
+    }
+  }
+}
+
+# HTTPのリダイレクト
+resource "aws_lb_listener" "redirect_http_to_https" {
+  load_balancer_arn = aws_lb.example.arn
+  port              = "8080"
+  protocol          = "HTTP"
+
+  default_action {
+    type = "redirect"
+
+    redirect {
+      port        = "443"
+      protocol    = "HTTPS"
+      status_code = "HTTP_301"
+    }
+  }
+}
