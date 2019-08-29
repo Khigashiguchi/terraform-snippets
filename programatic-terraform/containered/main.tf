@@ -418,3 +418,55 @@ resource "aws_lb_listener" "redirect_http_to_https" {
     }
   }
 }
+
+# リクエストフォワーディング
+# 任意のターゲットにリクエストをフォワード
+# Target Group ALBがリクエストをフォワードする先
+resource "aws_lb_target_group" "example" {
+  name = "example"
+  # EC2 instance, IP address, lambda関数などを指定
+  # FargateではIPアドレスでのルーティングが必須
+  target_type = "ip"
+  # IP指定した際に設定する
+  vpc_id   = aws_vpc.example.id
+  port     = 80
+  protocol = "HTTP"
+  # 登録解除待機時間
+  # ターゲット登録解除前にALBが待機する時間
+  # 秒単位指定
+  deregistration_delay = 300
+
+  health_check {
+    path                = "/" # ヘルスチェックで使用するパス
+    healthy_threshold   = 5   # 正常判定を行うまでの実行回数
+    unhealthy_threshold = 2   # 異常判定を行うまでの実行回数
+    timeout             = 5
+    interval            = 30
+    matcher             = 200            # HTTPステータスコード
+    port                = "traffic-port" # 使用ポート、ここでは上で定義した80になる
+    protocol            = "HTTP"
+  }
+
+  # ALBを作ってからターゲットグループが作られるように
+  depends_on = [aws_lb.example]
+}
+
+# リスナールール
+resource "aws_lb_listener_rule" "example" {
+  listener_arn = aws_lb_listener.https.arn
+  # 複数定義可能、数字が低いほど有先順位が高い
+  priority = 100
+
+  # フォワード先のターゲットグループ
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.example.arn
+  }
+
+  # 条件指定 ex. /img/*, example.com
+  condition {
+    field = "path-pattern"
+    # /* はすべてのパスがマッチする
+    values = ["/*"]
+  }
+}
