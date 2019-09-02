@@ -566,3 +566,84 @@ module "ecs_task_execution_role" {
   identifier = "ecs-tasks.amazonaws.com"
   policy     = data.aws_iam_policy_document.ecs_task_execution.json
 }
+
+# バッチ設計
+# バッチ処理は、オンライン処理とは異なる関心事を示す
+# アプリケーションレベルでどこまで制御し、ジョブ管理システムでどこまでサポートするか
+# 重要な観点は以下の4つ
+# - ジョブ管理
+# - エラーハンドリング
+#   - エラー通知が重要、失敗した場合検知してリカバリが必要
+#   - ロギングも必須、スタックトレースなどの情報は確実にログ出力
+# - リトライ
+#   - 自動で指定回数リトライできる必要、少なくとも手動リトライ
+# - 依存関係制御
+#   - ジョブが増える場合依存関係制御が必要
+#   - ジョブA->B->C
+#   - 時間をずらして暗黙的な依存関係制御を行うのはアンチパターン
+
+# ジョブ管理
+# - 手軽なものはcron、手軽な反面管理が難しい
+# - ジョブ管理システム
+#   - Rundeck, JP1
+# - AWSには現在ジョブ管理システムは存在しない
+
+# ECS Scheduled Task
+# ECSのタスクを定期実行
+# 単体では、エラーハンドリング・リトライなどは無く、アプリケーションでやる必要
+
+resource "aws_cloudwatch_log_group" "for_ecs_scheduled_tasks" {
+  name              = "/ecs-scheduled-tasks/example"
+  retention_in_days = 180
+}
+
+resource "aws_ecs_task_definition" "example_batch" {
+  family                   = "example-batch"
+  cpu                      = "256"
+  memory                   = "512"
+  network_mode             = "awsvpc"
+  requires_compatibilities = ["FARGATE"]
+  container_definitions    = file("./batch_container_definitions.json")
+  execution_role_arn       = module.ecs_task_execution_role.iam_role_arn
+}
+
+module "ecs_events_role" {
+  source     = "./iam_role"
+  name       = "ecs-events"
+  identifier = "events.amazonaws.com"
+  policy     = data.aws_iam_policy.ecs_events_role_policy.policy
+}
+
+# CloudWatchイベントIAM
+# AmazonEC2ContainerServiceEventsRoleポリシー
+data "aws_iam_policy" "ecs_events_role_policy" {
+  arn = "arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceEventsRole"
+}
+
+# CloudWatchイベントルール
+resource "aws_cloudwatch_event_rule" "example_batch" {
+  name        = "example_batch"
+  description = "very important batch procedure"
+  # cron or rate
+  schedule_expression = "cron(*/2 * * * ? *)"
+}
+
+# CloudWatchイベントターゲット
+resource "aws_cloudwatch_event_target" "example_batch" {
+  target_id = "example-batch"
+  rule      = aws_cloudwatch_event_rule.example_batch.name
+  role_arn  = module.ecs_events_role.iam_role_arn
+  arn       = aws_ecs_cluster.example.arn
+
+  ecs_target {
+    launch_type         = "FARGATE"
+    task_count          = 1
+    platform_version    = "1.3.0"
+    task_definition_arn = aws_ecs_task_definition.example_batch.arn
+
+    network_configuration {
+      assign_public_ip = "false"
+      subnets          = [aws_subnet.private_0.id]
+    }
+  }
+}
