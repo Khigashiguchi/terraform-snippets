@@ -669,3 +669,31 @@ resource "aws_kms_alias" "example" {
   name          = "alias/example"
   target_key_id = aws_kms_key.example.key_id
 }
+
+# SSM Parameter Store
+# 設定管理に特化したマネージドストア
+resource "aws_ssm_parameter" "db_username" {
+  name        = "/db/username"
+  value       = "root"
+  type        = "String"
+  description = "detabase user name"
+}
+
+# ダミー値を設定して、あとでAWS CLIで更新する戦略
+resource "aws_ssm_parameter" "db_raw_password" {
+  name        = "/db/raw_password"
+  value       = "VeryStringPassword!"
+  type        = "SecureString"
+  description = "detabase raw password"
+}
+
+resource "aws_ssm_parameter" "db_password" {
+  name        = "/db/password"
+  value       = "uninitialized"
+  type        = "SecureString"
+  description = "detabase password"
+
+  lifecycle {
+    ignore_changes = [value]
+  }
+}
