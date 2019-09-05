@@ -647,3 +647,25 @@ resource "aws_cloudwatch_event_target" "example_batch" {
     }
   }
 }
+
+# KMS Key Management Service
+# 暗号化戦略として、エンベロープ暗号化を採用
+# See also https://docs.aws.amazon.com/ja_jp/kms/latest/developerguide/concepts.html#enveloping
+# データの暗号化は、直接カスタマーマスターキーを使うのではなく、カスタマーマスターキーが自動生成したデータキーを使用して、暗号化・複号を行う
+resource "aws_kms_key" "example" {
+  description = "Example Customer Master Key"
+  # 自動ローテーション：年に1回ローテーションする
+  enable_key_rotation = true
+  # 有効化・無効化 falseにするとカスタマーマスターキーを無効化
+  # あらためて有効化もできる
+  is_enabled = true
+  # 削除待機期間
+  # 7~30日の範囲、デフォルトは30日
+  # この期間は削除
+  deletion_window_in_days = 30
+}
+
+resource "aws_kms_alias" "example" {
+  name          = "alias/example"
+  target_key_id = aws_kms_key.example.key_id
+}
