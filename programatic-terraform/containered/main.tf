@@ -697,3 +697,93 @@ resource "aws_ssm_parameter" "db_password" {
     ignore_changes = [value]
   }
 }
+
+# RDS Relational Database Service
+# DB Parameter Group my.cnfに定義する　
+resource "aws_db_parameter_group" "example" {
+  name = "example"
+  # family engine name + version
+  family = "mysql5.7"
+
+  parameter {
+    name  = "character_set_database"
+    value = "utf8mb4"
+  }
+
+  parameter {
+    name  = "character_set_server"
+    value = "utf8mb4"
+  }
+}
+
+# DB Option group
+resource "aws_db_option_group" "example" {
+  name                 = "example"
+  engine_name          = "mysql"
+  major_engine_version = "5.7"
+
+  option {
+    option_name = "MARIADB_AUDIT_PLUGIN"
+  }
+}
+
+# DB Subnet group
+resource "aws_db_subnet_group" "example" {
+  name       = "example"
+  subnet_ids = [aws_subnet.private_0.id, aws_subnet.private_1.id]
+}
+
+# DB Instance
+resource "aws_db_instance" "example" {
+  # 識別子 endpointに使われる
+  identifier     = "example"
+  engine         = "mysql"
+  engine_version = "5.7.23"
+  instance_class = "db.t3.small"
+  # storage: ディスク容量
+  allocated_storage = 20
+  # 汎用SSD(gp2) or プロビジョンドIOPS
+  storage_type = "gp2"
+  # 暗号化、ディスク暗号化
+  storage_encrypted = true
+  # アカウントをまたいだスナップショットの共有ができなくなるので、
+  # デフォルトAWS KMS暗号化鍵を使用
+  kms_key_id = aws_kms_key.example.arn
+  username   = "admin"
+  password   = "VeryStrongPassword!"
+  multi_az   = true
+  # VPC外からのアクセスを遮断
+  publicly_accessible = false
+  # バックアップ、毎日行われる
+  # タイミング UTC
+  backup_window = "09:10-09:40"
+  # バックアップ保持期間 最大35日
+  backup_retention_period = 30
+  # メンテナンス 定期的 OS・データベースエンジンの更新あり、無効にはできない
+  maintenance_window = "mon:10:10-mon:10:40"
+  # 自動マイナーバージョンアップは無効化できる
+  auto_minor_version_upgrade = false
+  # 削除保護 destroy出来るよううにoffに　
+  deletion_protection = false
+  skip_final_snapshot = true
+  port                = 3306
+  # RDS設定変更のタイミング 即時・メンテナンスウィンドウ
+  # 予期せぬダウンタイムを避けるために即時反映を避ける
+  apply_immediately      = false
+  vpc_security_group_ids = [module.mysql_sg.security_group_id]
+  parameter_group_name   = aws_db_parameter_group.example.name
+  option_group_name      = aws_db_option_group.example.name
+  db_subnet_group_name   = aws_db_subnet_group.example.name
+
+  lifecycle {
+    ignore_changes = [password]
+  }
+}
+
+module "mysql_sg" {
+  source      = "./security_group"
+  name        = "mysql-sg"
+  vpc_id      = aws_vpc.example.id
+  port        = 3306
+  cidr_blocks = [aws_vpc.example.cidr_block]
+}
