@@ -833,3 +833,28 @@ module "redis_sg" {
   port        = 6379
   cidr_blocks = [aws_vpc.example.cidr_block]
 }
+
+# Container Registry
+resource "aws_ecr_repository" "example" {
+  name = "example"
+}
+
+resource "aws_ecr_lifecycle_policy" "example" {
+  repository = aws_ecr_repository.example.name
+
+  policy = <<EOF
+  {
+    "rulePriority": 1,
+    "description": "Keep last 30 release tagged images",
+    "selection": {
+      "tagStatus": "tagged",
+      "tagPrefixList": ["release"],
+      "countType": "imageCountMoreThan",
+      "countNumber": 30
+    },
+    "action": {
+      "type": "expire"
+    }
+  }
+  EOF
+}
